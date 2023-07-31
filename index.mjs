@@ -16,6 +16,7 @@ await Promise.all([r1.connect(), r2.connect()]);
 r1.randomBattle(format);
 r2.randomBattle(format);
 
+
 // r2.challenge(r1.username, 'gen9randombattle')
 
 /*

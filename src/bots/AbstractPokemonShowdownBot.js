@@ -19,7 +19,34 @@ export const MOVE_TYPES = {
     SWITCH: "switch",
     MOVE: "move"
 }
-
+async function getRegisterAssertion(challstr, username, password){
+    try {
+        const response = await axios.post('https://play.pokemonshowdown.com/api/register',{
+            username: username,
+            password: password,
+            cpassword: password,
+            captcha: 'pikachu',
+            challstr: challstr
+        });
+        return response.data.match(/"assertion":"([^"]+)"/)[1];
+    }catch (e){
+        console.error('Error registering:', e.message);
+        return null;
+    }
+}
+async function getLoginAssertion(challstr, username, password) {
+    try {
+        const response = await axios.post('https://play.pokemonshowdown.com/api/login', {
+            name: username,
+            pass: password,
+            challstr: challstr,
+        });
+        return response.data.match(/"assertion":"([^"]+)"/)[1];
+    } catch (error) {
+        console.error('Error logging in:', error.message);
+        return null;
+    }
+}
 export class AbstractPokemonShowdownBot {
     history = [];
     battleId;
@@ -27,13 +54,16 @@ export class AbstractPokemonShowdownBot {
     oppAbility;
     isBattleTimerOn = false;
     filename = 'bot_data.json';
-    constructor(username, password) {
+    isNewUser = false;
+    constructor(username, password, isNewUser=false) {
         this.username = username;
         this.password = password;
         this.ws = new WebSocket(`ws://${process.env.SERVER}:${process.env.PORT}/showdown/websocket`);
         this.isLoggedIn = false;
         this.isBattling = false;
+        this.isNewUser = isNewUser;
     }
+
     randomBattle(format){
         this.ws.send(`|/search ${format}`)
     }
@@ -44,22 +74,11 @@ export class AbstractPokemonShowdownBot {
     }
     // Function to log in as your bot
     login(message, username, password) {
-        async function getAssertion(challstr) {
-            try {
-                const response = await axios.post('https://play.pokemonshowdown.com/api/login', {
-                    name: username,
-                    pass: password,
-                    challstr: challstr,
-                });
-
-                return response.data.match(/"assertion":"([^"]+)"/)[1];;
-            } catch (error) {
-                console.error('Error logging in:', error.message);
-                return null;
-            }
-        }
         const challstr = message.toString().replace('|challstr|', '');
-        getAssertion(challstr).then((assertion)=>this.ws.send(`|/trn ${username},0,${assertion}`));
+        if(!this.isNewUser)
+            getLoginAssertion(challstr, username, password).then((assertion)=>this.ws.send(`|/trn ${username},0,${assertion}`));
+        else
+            getRegisterAssertion(challstr, username, password).then((assertion)=>this.ws.send(`|/trn ${username},0,${assertion}`));
     }
     connect() {
         return new Promise((resolve, reject) => {
@@ -90,6 +109,7 @@ export class AbstractPokemonShowdownBot {
                     this.ws.send(`|/accept ${msgType[1]}`) // accept challenge
                     this.isBattling = true;
                 }
+                // i challenged someone else
                 if(message.indexOf(">battle-") === 0){
                     this.isBattling = true;
                 }
