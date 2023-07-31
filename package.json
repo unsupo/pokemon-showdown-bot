@@ -1,0 +1,21 @@
+{
+  "name": "pokemon-showdown-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.mjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@ajhyndman/smogon-calc": "^0.8.0",
+    "@pkmn/sim": "^0.7.46",
+    "@smogon/calc": "^0.7.0",
+    "axios": "^1.4.0",
+    "dotenv": "^16.3.1",
+    "esm": "^3.2.25",
+    "ws": "^8.13.0"
+  },
+  "type": "module"
+}
