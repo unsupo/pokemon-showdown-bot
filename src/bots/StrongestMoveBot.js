@@ -3,16 +3,41 @@ import {findHighestDamageMove} from "../utils/battleSim.mjs";
 import {getRandomValueFromArray, getRandomWeightedMove} from "../utils/math.js";
 export class StrongestMoveBot extends AbstractPokemonShowdownBot {
     forceSwitch(pokemons) {
-        // TODO pick the pokemon with the strongest move against the active pokemon
-        const randomPokemon = pokemons[Math.floor(Math.random() * pokemons.length)];
-        this.choose(MOVE_TYPES.SWITCH, randomPokemon);
+        let strongestPokemon;
+        try {
+            let strongestMove = -Infinity;
+            for (const pokemon in this.request.side.pokemon.filter((p) => !p.active && !p.fainted)) {
+                const damageMap = findHighestDamageMove(pokemon, this.opponentPokemon);
+                const [keyWithHighestValue, highestValue] = Object.entries(damageMap).reduce(
+                    (acc, [key, value]) => (value > acc[1] ? [key, value] : acc),
+                    ['', -Infinity]
+                );
+                if (highestValue > strongestMove) {
+                    strongestMove = highestValue;
+                    strongestPokemon = pokemon;
+                }
+            }
+        }catch (e) {
+            console.error(e);
+            console.log('Picking random pokemon');
+            strongestPokemon = pokemons[Math.floor(Math.random() * pokemons.length)];
+        }
+        this.choose(MOVE_TYPES.SWITCH, strongestPokemon);
     }
     fight() {
         try {
+            // TODO switch out if bad matchup
             // given the oppenent's mon as Lumineon|Lumineon, L92, M|49/276
             // returns a map of { move: damage }
-            // TODO why would it pick earthquake against a flying type? does it think it's a non-damaging move?
-            const damageMap = findHighestDamageMove(this.request.side.pokemon.filter((p) => p.active)[0], this.opponentPokemon+"|"+this.oppAbility);
+            const active = this.request.side.pokemon.filter((p) => p.active)[0];
+            active.moves = this.request.active[0].moves.map((m)=>m.move);
+            const damageMap = findHighestDamageMove(active, this.opponentPokemon);
+            // remove disabled moves
+            for (const obj of this.request.active[0].moves) { //TypeError: Cannot read properties of undefined (reading '0')
+                if (obj.disabled && damageMap.moves.hasOwnProperty(obj.move)) {
+                    delete damageMap.moves[obj.move];
+                }
+            }
             // prioritize a kill, if damageMap.moves has a move with damage >= 100% then pick it without getting a weighted move
             const killMoves = Object.fromEntries(Object.entries(damageMap.moves).filter(([key, value]) => value >= 100));
             if(Object.keys(killMoves).length > 0){
@@ -20,12 +45,18 @@ export class StrongestMoveBot extends AbstractPokemonShowdownBot {
             }else {
                 // damage is weighted where non-damaging moves are 20% chance
                 const move = getRandomWeightedMove(damageMap.moves); // curious if i should lower chance of non-damaging moves, obviously i'm assuming they are good
-                this.choose(MOVE_TYPES.MOVE, move);
+                if(!move)
+                    if(this.request.side.pokemon.filter((p)=>!p.fainted).length === 1)// length of pokemon < 1 means this is my last mon so i can't switch out
+                        this.choose(MOVE_TYPES.MOVE, Object.keys(damageMap.moves)[0]);
+                    else
+                        this.forceSwitch(this.pokemons);
+                else
+                    this.choose(MOVE_TYPES.MOVE, move);
             }
         }catch (e){
             console.error(e);
             console.log("Picking random move");
-            // something we wrong here let's just pick a random move
+            // something went wrong here let's just pick a random move
             this.choose(MOVE_TYPES.MOVE, this.moves[Math.floor(Math.random() * this.moves.length)]);
         }
     }
@@ -36,6 +67,10 @@ export class StrongestMoveBot extends AbstractPokemonShowdownBot {
 // - need to switch when there is no chance (maybe highest damaging move is less than 20% hp)
 // - sleep talk is considered non damaging so it has an equal chance to be used at any point as if it was toxic
 // - sucker punch spam
+
+// in theory i should check
+// - how much damage i do and how much damage my opponent could do
+// - i check how much damage each and my opponent does against my switches
 
 // next bot will work with switches.
 // switch if:

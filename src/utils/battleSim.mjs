@@ -4,19 +4,25 @@ import {Battle, BattleStreams} from "@pkmn/sim";
 // import { BattleStream } from '@pkmn/sim';
 export function findHighestDamageMove(attacker, defender) {
     const gen = Generations.get(9); // You can change the generation if needed
-
+    // Sets.importSet(defenderPokemon.name, 'gen8ou');
     // Create an instance of the attacker Pokemon with its stats and moves
-    const attackerPokemon = new Pokemon(gen, attacker.details.split(',')[0], {
-        item: attacker.item,
-        ability: attacker.ability,
-        level: parseInt(attacker.details.split(',')[1].trim().slice(1)),
-        // gender: attacker.details.split(',')[2].trim(), // do i need gender
-        curHP: parseInt(attacker.condition.split('/')[0], 10),
-        baseStats: {
-            ...attacker.stats,
-            hp: parseInt(attacker.condition.split('/')[1], 10),
-        },
-    });
+    let attackerPokemon;
+    try {
+        attackerPokemon = new Pokemon(gen, attacker.details.split(',')[0], {
+            item: attacker.item,
+            ability: attacker.ability,
+            level: parseInt(attacker.details.split(',')[1].trim().slice(1)),
+            // gender: attacker.details.split(',')[2].trim(), // do i need gender
+            curHP: parseInt(attacker.condition.split('/')[0], 10),
+            baseStats: {
+                ...attacker.stats,
+                hp: parseInt(attacker.condition.split('/')[1], 10),
+            },
+        });
+    }catch (e) {
+        throw e;
+    }
+    /*
     // TODO set no damage moves apart from non damaging moves
     // Create an instance of the defender Pokemon with its stats
     const defenderDetails = defender.split('|')[1];
@@ -48,13 +54,23 @@ export function findHighestDamageMove(attacker, defender) {
         console.log(defender);
         throw e;
     }
-
+    */
+    const defenderPokemon = new Pokemon(gen, defender.pokemonType,{
+        level: defender.level,
+        ...(defender.gender ? {gender: defender.gender}:{}),
+        curHP: defender.currentHP,
+        baseStats: {hp: (defender.hp ? defender.hp : defender.maxHP)},
+        boosts: defender.boosts,
+        ...(defender.ability ? {ability: defender.ability} : {}),
+        ...(defender.item ? {item: defender.item} : {}),
+        ...(defender.status ? {status: defender.status} : {})
+    })
     // Calculate the damage for each move and find the move with the highest damage
     const damageMoveMap = {}
 
     for (const moveName of attacker.moves) {
         const move = new Move(gen, moveName);
-        const result = calculate(gen, attackerPokemon, defenderPokemon, move);
+        const result = calculate(gen, attackerPokemon, defenderPokemon, move); // TypeError: Cannot read properties of undefined (reading '0')
         if(move.category === "Status"){
             damageMoveMap[move.name]=-1;
             continue;
@@ -63,7 +79,7 @@ export function findHighestDamageMove(attacker, defender) {
     }
 
     // return Object.keys(sortDictionaryByValue(damageMoveMap))[0];
-    return { moves: sortDictionaryByValue(damageMoveMap), isFaster: attacker.speed > defender.speed };
+    return { moves: sortDictionaryByValue(damageMoveMap), isFaster: attackerPokemon.speed > defenderPokemon.speed };
 }
 const getAverage = (arr) => typeof arr === 'number' ? arr : arr.reduce((acc, curr) => acc + curr, 0) / arr.length;
 const sortDictionaryByValue = (dictionary) => Object.fromEntries(Object.entries(dictionary).sort((a, b) => b[1] - a[1]));

@@ -2,6 +2,7 @@ import axios from "axios";
 import dotenv from 'dotenv';
 import WebSocket from 'ws';
 import * as fs from "fs";
+import {BattleLogParser} from "../parsers/BattleLogParser.js";
 dotenv.config();
 
 const MESSAGES = {
@@ -62,6 +63,7 @@ export class AbstractPokemonShowdownBot {
         this.isLoggedIn = false;
         this.isBattling = false;
         this.isNewUser = isNewUser;
+        this.battleLogParser = new BattleLogParser();
     }
 
     randomBattle(format){
@@ -108,6 +110,7 @@ export class AbstractPokemonShowdownBot {
                     console.log('Accepting challenge');
                     this.ws.send(`|/accept ${msgType[1]}`) // accept challenge
                     this.isBattling = true;
+                    this.battleLogParser = new BattleLogParser();
                 }
                 // i challenged someone else
                 if(message.indexOf(">battle-") === 0){
@@ -127,6 +130,7 @@ export class AbstractPokemonShowdownBot {
         // TODO change so that it sends move after turn appears
         // TODO turn on battle timer: battle-gen9randombattle-1914233611|/timer on
         const msg = message.toString().split('|');
+        this.battleLogParser.parse(message.toString());
 
         if(msg[1] === BATTLE_MESSAGES.ERROR){// hopefully the second error is fixed by putting the filter but not sure about the first
             // msg[2].indexOf(' the next turn has already started') >= 0 is this an issue?
@@ -172,14 +176,8 @@ export class AbstractPokemonShowdownBot {
         }
         // every turn make a move based on the data extracted, request and ref1 below
         if(msg.length - 2 >= 0 && msg[msg.length - 2] === 'turn'){
-            // get opponent's pokemon
-            if(message.toString().indexOf("switch|p1a") >= 0){ // TODO find my and opps player id
-                // TODO also get the opponent's abilities and boost/unboost if applicable
-                // TODO air balloon and other items i know, reflect and light screen, status, ect
-                this.opponentPokemon = message.toString().match(/p1a:\s*(.*)/)?.[1];
-                this.oppAbility = (message.toString().match(/(?<=\|-ability\|p1a: )[^\|]+/) || [])[0]
-                // this.opponentPokemon+="|"+oppAbility;
-            }
+            // battleLogParser should handle this stuff
+            this.opponentPokemon = this.battleLogParser.getOpponent(this.username).active;
             try {
                 this.fight();
             }catch (e) {
@@ -187,7 +185,7 @@ export class AbstractPokemonShowdownBot {
             }
         }
         if(this.isBattling && this.battleId && !this.isBattleTimerOn){
-            this.ws.send(`${this.battleId}|/timer on`)
+            this.ws.send(`${this.battleId}|/timer on`);
             this.isBattleTimerOn = true;
         }
         if(msg[1]==='inactive' && msg[2].indexOf(this.username) >= 0)
@@ -199,6 +197,7 @@ export class AbstractPokemonShowdownBot {
             this.ws.send(`|/noreply /leave ${this.battleId}`)
             this.isBattling = false;
             this.isBattleTimerOn = false;
+            this.battleLogParser = new BattleLogParser();
         }
     }
 
